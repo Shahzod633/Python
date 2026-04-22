@@ -1189,7 +1189,7 @@ while n > 9:
 print(n)'''
 
 #1
-x=int(input())
+'''x=int(input())
 y=int(input())
 if x>0 and y>0:
     print('1-я четверьт')
@@ -1198,7 +1198,7 @@ elif x<0 and y<0:
 elif x>0 and y<0:
     print('4-я четверьт')
 else:
-    print('2-я четверьт')
+    print('2-я четверьт')'''
 
 
 # 2
@@ -1213,6 +1213,207 @@ else:
 '''for j in range(1, 11):
     print(j, end=" ")'''
 
+'''s = '01234567891011121314151617'
+for i in range(0, len(s), 5):
+    print(s[i], end='')
+'''
+
+# На вход программе подаются три строки: имя, фамилия и отчество (именно в таком порядке). Напишите программу, которая выводит инициалы человека.
+'''a=input()   #имя 
+b=input()   #фамилия
+c=input()   #отчество
+for j in range(len(b)):
+    print(b[0], end='')
+    break
+for i in range(len(a)):
+    print(a[i], end='')
+    break
+for x in range(len(c)):
+    print(c[x])
+    break'''
+
+'''a=input()
+print(a[2])
+print(a[-2])
+print(a[:5])
+print(a[0:-2])
+print(a[0::2])
+print(a[:])
+print(a[:0:-2])  # все символы строки через один в обратном порядке, начиная с последнего.
+'''
+
+'''"""
+Моделирование движения планет
+==============================
+Физика: закон гравитации Ньютона  F = G * m1 * m2 / r^2
+Интегратор: метод Верле (Velocity Verlet) — сохраняет энергию
+Единицы: астрономические (а.е., годы, массы Солнца)
+"""
+
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+from dataclasses import dataclass, field
+
+# ── Константы ────────────────────────────────────────────────────────────────
+G = 4 * np.pi**2          # гравитационная постоянная в единицах [а.е.³ / (M☉ · год²)]
+
+# ── Тело (планета или звезда) ────────────────────────────────────────────────
+@dataclass
+class Body:
+    name:  str
+    mass:  float                          # в массах Солнца
+    pos:   np.ndarray                     # [x, y] в а.е.
+    vel:   np.ndarray                     # [vx, vy] в а.е./год
+    color: str  = "white"
+    size:  float = 6
+    trail: list  = field(default_factory=list)  # история позиций
+
+    def __post_init__(self):
+        self.pos = np.array(self.pos, dtype=float)
+        self.vel = np.array(self.vel, dtype=float)
+
+
+# ── Начальные условия: Солнечная система (упрощённо) ─────────────────────────
+def create_solar_system() -> list[Body]:
+    """
+    Скорости рассчитаны из условия круговой орбиты: v = sqrt(G*M/r).
+    Для реализма можно заменить на реальные данные NASA Horizons.
+    """
+    bodies = [
+        Body("Солнце",   1.0,    [0.0,   0.0],   [0.0,  0.0],    color="#FFD700", size=20),
+        Body("Меркурий", 1.65e-7,[0.387, 0.0],   [0.0,  10.10],  color="#B5B5B5", size=4),
+        Body("Венера",   2.45e-6,[0.723, 0.0],   [0.0,   7.39],  color="#E8C46A", size=6),
+        Body("Земля",    3.00e-6,[1.0,   0.0],   [0.0,   6.28],  color="#4FC3F7", size=6),
+        Body("Марс",     3.23e-7,[1.524, 0.0],   [0.0,   5.09],  color="#EF5350", size=5),
+        Body("Юпитер",   9.55e-4,[5.203, 0.0],   [0.0,   2.76],  color="#F4A460", size=14),
+        Body("Сатурн",   2.86e-4,[9.537, 0.0],   [0.0,   2.04],  color="#DAA520", size=12),
+    ]
+    return bodies
+
+
+# ── Физика ───────────────────────────────────────────────────────────────────
+def compute_accelerations(bodies: list[Body]) -> list[np.ndarray]:
+    """Вычисляет ускорение каждого тела от всех остальных (закон Ньютона)."""
+    n = len(bodies)
+    accs = [np.zeros(2) for _ in range(n)]
+    for i in range(n):
+        for j in range(i + 1, n):
+            r_vec = bodies[j].pos - bodies[i].pos
+            dist  = np.linalg.norm(r_vec)
+            if dist < 1e-10:          # защита от деления на ноль
+                continue
+            f_mag = G * bodies[i].mass * bodies[j].mass / dist**2
+            f_vec = f_mag * r_vec / dist
+            accs[i] += f_vec / bodies[i].mass
+            accs[j] -= f_vec / bodies[j].mass
+    return accs
+
+
+def velocity_verlet_step(bodies: list[Body], accs_old: list[np.ndarray], dt: float):
+    """Один шаг интегрирования методом Velocity Verlet."""
+    # 1. Обновить позиции
+    for body, a in zip(bodies, accs_old):
+        body.pos += body.vel * dt + 0.5 * a * dt**2
+
+    # 2. Вычислить новые ускорения
+    accs_new = compute_accelerations(bodies)
+
+    # 3. Обновить скорости
+    for body, a_old, a_new in zip(bodies, accs_old, accs_new):
+        body.vel += 0.5 * (a_old + a_new) * dt
+
+    return accs_new
+
+
+# ── Анимация ─────────────────────────────────────────────────────────────────
+def run_simulation(
+    bodies: list[Body],
+    dt: float  = 0.005,      # шаг по времени (год)
+    steps_per_frame: int = 5, # шагов физики на один кадр
+    max_trail: int = 180,     # длина следа (кадры)
+    view_size: float = 11.0,  # размер окна (а.е.)
+):
+    fig, ax = plt.subplots(figsize=(9, 9), facecolor="#0a0a1a")
+    ax.set_facecolor("#0a0a1a")
+    ax.set_xlim(-view_size, view_size)
+    ax.set_ylim(-view_size, view_size)
+    ax.set_aspect("equal")
+    ax.axis("off")
+    ax.set_title("Моделирование Солнечной системы", color="white",
+                 fontsize=14, pad=12)
+
+    # Графические объекты
+    dots   = [ax.plot([], [], "o", color=b.color, ms=b.size,
+                      zorder=3)[0] for b in bodies]
+    trails = [ax.plot([], [], "-", color=b.color, lw=0.8, alpha=0.5,
+                      zorder=2)[0] for b in bodies]
+    labels = [ax.text(0, 0, b.name, color=b.color, fontsize=7,
+                      ha="left", va="bottom", zorder=4) for b in bodies]
+
+    time_text = ax.text(0.02, 0.97, "", transform=ax.transAxes,
+                        color="white", fontsize=10, va="top")
+
+    # Предвычисляем начальные ускорения
+    accs = compute_accelerations(bodies)
+    elapsed = [0.0]   # мутабельный счётчик времени
+
+    def init():
+        for d in dots:   d.set_data([], [])
+        for t in trails: t.set_data([], [])
+        return dots + trails + labels + [time_text]
+
+    def update(_frame):
+        nonlocal accs
+        for _ in range(steps_per_frame):
+            accs = velocity_verlet_step(bodies, accs, dt)
+            elapsed[0] += dt
+            for body in bodies:
+                body.trail.append(body.pos.copy())
+                if len(body.trail) > max_trail:
+                    body.trail.pop(0)
+
+        for i, body in enumerate(bodies):
+            dots[i].set_data([body.pos[0]], [body.pos[1]])
+            if len(body.trail) > 1:
+                tr = np.array(body.trail)
+                trails[i].set_data(tr[:, 0], tr[:, 1])
+            labels[i].set_position((body.pos[0] + 0.15, body.pos[1] + 0.15))
+
+        years  = int(elapsed[0])
+        days   = int((elapsed[0] - years) * 365.25)
+        time_text.set_text(f"Время: {years} лет {days} дней")
+        return dots + trails + labels + [time_text]
+
+    ani = animation.FuncAnimation(
+        fig, update, init_func=init,
+        interval=20, blit=True, cache_frame_data=False
+    )
+
+    plt.tight_layout()
+    plt.show()
+    return ani
+
+
+# ── Энтрипоинт ───────────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    print("🪐 Запуск симуляции Солнечной системы...")
+    print("   Закрой окно, чтобы остановить.\n")
+    solar_system = create_solar_system()
+    run_simulation(solar_system)'''
+
+'''a=input()
+print(a[2])
+print(a[-2])
+print(a[:5])
+print(a[0:-2])
+print(a[0::2])
+print(a[:])
+print(a[:0:-2])  # все символы строки через один в обратном порядке, начиная с последнего.'''
+
+# Количество слов
+a = input()
+print(a.count(' ') + 1)
 
 
 
