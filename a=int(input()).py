@@ -1,3 +1,4 @@
+
 '''a, b, c, d=int(input()), int(input()), int(input()), int(input()),
 if a <= b and a <= c and a <= d:
     print(a)
@@ -1412,8 +1413,15 @@ print(a[:])
 print(a[:0:-2])  # все символы строки через один в обратном порядке, начиная с последнего.'''
 
 # Количество слов
-a = input()
-print(a.count(' ') + 1)
+'''a = input()
+print(a.count(' ') + 1)'''
+
+# время 
+'''S=float(input('Растояние:'))
+V=float(input('Скорость:'))
+t=S/V
+T=t%10
+print(f'Время в дороге {t}часов')'''
 
 
 
